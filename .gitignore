@@ -1,0 +1,34 @@
+# Python / virtualenv
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+
+# Model weights and large artifacts
+*.pth
+*.pt
+*.onnx
+
+# Logs and temp
+*.log
+logs/
+tmp/
+
+# IDE / editor
+.vscode/
+.idea/
+.DS_Store
+
+# Node / frontend
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+
+# Render / deployment artifacts
+.render/
+
