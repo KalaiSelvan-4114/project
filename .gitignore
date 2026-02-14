@@ -8,8 +8,9 @@ __pycache__/
 venv/
 env/
 
-# Model weights and large artifacts
+# Model weights and large artifacts (allow efficientnet_b3_final.pth in repo)
 *.pth
+!efficientnet_b3_final.pth
 
 # Logs and temp
 *.log
