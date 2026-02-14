@@ -2,6 +2,7 @@ import base64
 import io
 import os
 import re
+import threading
 from typing import Tuple, Dict, Any
 
 import cv2
@@ -125,7 +126,22 @@ def load_model(model_path: str, device: str) -> nn.Module:
     return model
 
 
-model = load_model(MODEL_PATH, DEVICE)
+# Lazy-load model on first use so gunicorn worker starts quickly (avoids WORKER TIMEOUT on Render).
+_model: nn.Module | None = None
+_model_lock = threading.Lock()
+
+
+def get_model() -> nn.Module:
+    global _model
+    if _model is not None:
+        return _model
+    with _model_lock:
+        if _model is not None:
+            return _model
+        _model = load_model(MODEL_PATH, DEVICE)
+    return _model
+
+
 transform = get_test_transform()
 
 
@@ -323,7 +339,7 @@ def predict() -> Tuple[Any, int]:
 
         input_tensor = transform(pil_resized).unsqueeze(0).to(DEVICE)
         with torch.no_grad():
-            logits = model(input_tensor)
+            logits = get_model()(input_tensor)
             probs = torch.softmax(logits, dim=1)[0]
 
         top_idx = int(torch.argmax(probs).item())

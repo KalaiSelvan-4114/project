@@ -4,5 +4,6 @@ services:
     name: skin-disease-api
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    # Long timeout so first /predict (download + load model) doesn't get killed; worker starts fast with lazy load.
+startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 300
     healthCheckPath: /health
