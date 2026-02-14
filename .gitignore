@@ -10,8 +10,6 @@ env/
 
 # Model weights and large artifacts
 *.pth
-*.pt
-*.onnx
 
 # Logs and temp
 *.log

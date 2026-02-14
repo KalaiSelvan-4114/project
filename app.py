@@ -4,6 +4,7 @@ import os
 from typing import Tuple, Dict, Any
 
 import cv2
+import gdown
 import numpy as np
 from PIL import Image
 from flask import Flask, jsonify, request
@@ -15,6 +16,8 @@ from torchvision import models, transforms
 
 # ================= CONFIG =================
 MODEL_PATH = os.environ.get("MODEL_PATH", "efficientnet_b3_final.pth")
+# Set GOOGLE_DRIVE_FILE_ID in Render (or locally) to download model from Drive if not present
+GOOGLE_DRIVE_FILE_ID = os.environ.get("GOOGLE_DRIVE_FILE_ID", "").strip()
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 IMG_SIZE = int(os.environ.get("IMG_SIZE", "224"))
 
@@ -64,11 +67,26 @@ def build_model(num_classes: int) -> nn.Module:
     return model
 
 
-def load_model(model_path: str, device: str) -> nn.Module:
-    if not os.path.isfile(model_path):
+def ensure_model_downloaded(model_path: str) -> None:
+    """Download model from Google Drive if file does not exist and GOOGLE_DRIVE_FILE_ID is set."""
+    if os.path.isfile(model_path):
+        return
+    if not GOOGLE_DRIVE_FILE_ID:
         raise FileNotFoundError(
             f"Model file not found at '{model_path}'. "
-            "Set MODEL_PATH env variable if it is stored elsewhere."
+            "Either place the model file there, or set GOOGLE_DRIVE_FILE_ID to your Google Drive file ID."
+        )
+    # Download from Google Drive (e.g. share link: https://drive.google.com/file/d/FILE_ID/view)
+    url = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_FILE_ID}"
+    gdown.download(url, model_path, quiet=False)
+
+
+def load_model(model_path: str, device: str) -> nn.Module:
+    ensure_model_downloaded(model_path)
+    if not os.path.isfile(model_path):
+        raise FileNotFoundError(
+            f"Model file not found at '{model_path}' after download attempt. "
+            "Check GOOGLE_DRIVE_FILE_ID and that the file is shared as 'Anyone with the link can view'."
         )
 
     model = build_model(len(CLASS_NAMES))
