@@ -1,6 +1,7 @@
 import base64
 import io
 import os
+import re
 from typing import Tuple, Dict, Any
 
 import cv2
@@ -14,10 +15,34 @@ import torch.nn as nn
 from torchvision import models, transforms
 
 
+def _extract_drive_file_id(value: str) -> str:
+    """Extract Google Drive file ID from a raw ID or full share URL."""
+    if not value or not value.strip():
+        return ""
+    value = value.strip()
+    # Already a short hex-like ID (e.g. 1DbMi52hwTyiSOYB2ERS4sL5SjHzEyOXJ)
+    if re.match(r"^[\w\-]{20,}$", value) and "/" not in value:
+        return value
+    # Full URL: .../d/FILE_ID/view... or ...?id=FILE_ID
+    m = re.search(r"/d/([\w\-]+)(?:/view|$)", value)
+    if m:
+        return m.group(1)
+    m = re.search(r"[?&]id=([\w\-]+)", value)
+    if m:
+        return m.group(1)
+    return value
+
+
 # ================= CONFIG =================
-MODEL_PATH = os.environ.get("MODEL_PATH", "efficientnet_b3_final.pth")
-# Set GOOGLE_DRIVE_FILE_ID in Render (or locally) to download model from Drive if not present
-GOOGLE_DRIVE_FILE_ID = os.environ.get("GOOGLE_DRIVE_FILE_ID", "").strip()
+_raw_model_path = os.environ.get("MODEL_PATH", "efficientnet_b3_final.pth").strip()
+# If MODEL_PATH was set to a Google Drive URL by mistake, use it as drive ID and default local path
+if _raw_model_path.startswith("http") and "drive.google.com" in _raw_model_path:
+    GOOGLE_DRIVE_FILE_ID = _extract_drive_file_id(_raw_model_path)
+    MODEL_PATH = "efficientnet_b3_final.pth"
+else:
+    MODEL_PATH = _raw_model_path
+    _drive_id_env = os.environ.get("GOOGLE_DRIVE_FILE_ID", "").strip()
+    GOOGLE_DRIVE_FILE_ID = _extract_drive_file_id(_drive_id_env) if _drive_id_env else ""
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 IMG_SIZE = int(os.environ.get("IMG_SIZE", "224"))
 
