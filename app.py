@@ -1,12 +1,10 @@
 import base64
 import io
 import os
-import re
 import threading
 from typing import Tuple, Dict, Any
 
 import cv2
-import gdown
 import numpy as np
 from PIL import Image
 from flask import Flask, jsonify, request
@@ -16,34 +14,9 @@ import torch.nn as nn
 from torchvision import models, transforms
 
 
-def _extract_drive_file_id(value: str) -> str:
-    """Extract Google Drive file ID from a raw ID or full share URL."""
-    if not value or not value.strip():
-        return ""
-    value = value.strip()
-    # Already a short hex-like ID (e.g. 1DbMi52hwTyiSOYB2ERS4sL5SjHzEyOXJ)
-    if re.match(r"^[\w\-]{20,}$", value) and "/" not in value:
-        return value
-    # Full URL: .../d/FILE_ID/view... or ...?id=FILE_ID
-    m = re.search(r"/d/([\w\-]+)(?:/view|$)", value)
-    if m:
-        return m.group(1)
-    m = re.search(r"[?&]id=([\w\-]+)", value)
-    if m:
-        return m.group(1)
-    return value
-
-
 # ================= CONFIG =================
-_raw_model_path = os.environ.get("MODEL_PATH", "efficientnet_b3_final.pth").strip()
-# If MODEL_PATH was set to a Google Drive URL by mistake, use it as drive ID and default local path
-if _raw_model_path.startswith("http") and "drive.google.com" in _raw_model_path:
-    GOOGLE_DRIVE_FILE_ID = _extract_drive_file_id(_raw_model_path)
-    MODEL_PATH = "efficientnet_b3_final.pth"
-else:
-    MODEL_PATH = _raw_model_path
-    _drive_id_env = os.environ.get("GOOGLE_DRIVE_FILE_ID", "").strip()
-    GOOGLE_DRIVE_FILE_ID = _extract_drive_file_id(_drive_id_env) if _drive_id_env else ""
+# Model path: file in repo (Render gets it from git via LFS).
+MODEL_PATH = "efficientnet_b3_final.pth"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 IMG_SIZE = int(os.environ.get("IMG_SIZE", "224"))
 
@@ -93,26 +66,11 @@ def build_model(num_classes: int) -> nn.Module:
     return model
 
 
-def ensure_model_downloaded(model_path: str) -> None:
-    """Download model from Google Drive if file does not exist and GOOGLE_DRIVE_FILE_ID is set."""
-    if os.path.isfile(model_path):
-        return
-    if not GOOGLE_DRIVE_FILE_ID:
-        raise FileNotFoundError(
-            f"Model file not found at '{model_path}'. "
-            "Either place the model file there, or set GOOGLE_DRIVE_FILE_ID to your Google Drive file ID."
-        )
-    # Download from Google Drive (e.g. share link: https://drive.google.com/file/d/FILE_ID/view)
-    url = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_FILE_ID}"
-    gdown.download(url, model_path, quiet=False)
-
-
 def load_model(model_path: str, device: str) -> nn.Module:
-    ensure_model_downloaded(model_path)
     if not os.path.isfile(model_path):
         raise FileNotFoundError(
-            f"Model file not found at '{model_path}' after download attempt. "
-            "Check GOOGLE_DRIVE_FILE_ID and that the file is shared as 'Anyone with the link can view'."
+            f"Model file not found at '{model_path}'. "
+            "Ensure the model is in the repo (e.g. efficientnet_b3_final.pth via Git LFS) and deploy again."
         )
 
     model = build_model(len(CLASS_NAMES))
